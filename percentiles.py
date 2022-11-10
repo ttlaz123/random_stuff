@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 def adjust_percentiles(percentiles, adjust_param = 0.25):
     adjusted_list = []
@@ -23,6 +24,11 @@ def graph_adjustments(ranks, percentages):
     for i in range(len(percentages)):
         axs[i].bar(ranks, percentages[i])
         axs[i].set_xticklabels(ranks, rotation=90)
+        mean,std=norm.fit(percentages[i])
+        x = np.linspace(0, len(ranks), 100)
+        y = norm.pdf(x, mean, std)
+        axs[i].plot(x, y)  
+        
     plt.show()
 
 def load_percentiles(file_name):
