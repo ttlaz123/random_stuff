@@ -43,10 +43,30 @@ RAGEBLADE_AS = 0.1
 RAGEBLADE_SCALING = 0.05
 RAGEBLADE_AP = 10
 
+DEATHBLADE_AD = 60
+
+INFINITY_EDGE_AD = 25
+INFINITY_EDGE_CRITCHANCE = 35
+
+GIANT_SLAYER_AD = 30
+GIANT_SLAYER_AP = 20
+GIANT_SLAYER_AS = 0.1
+GIANT_SLAYER_MULTIPLYER = 0
+
+GUARDBREAKER_AD = 20
+GUARDBREAKER_AP = 20
+GUARDBREAKER_CRITCHANCE = 20
+GUARDBREAKER_HEALTH = 150
+GUARDBREAKER_MULTIPLYER = 0
+
+RFC_AS = 0.5
+
+MAX_AS = 5
+
 class Champion:
     
 
-    def __init__(self, base_stats, items = []):
+    def __init__(self, base_stats, items = [], target=None):
         self.base_stats = base_stats 
         self.cur_stats = base_stats.copy()
         self.items = items 
@@ -56,7 +76,7 @@ class Champion:
         self.num_autos = 0
         self.num_seconds = 0
         self.num_casts = 0
-
+        self.target = target
         
 
         
@@ -82,6 +102,11 @@ class Champion:
         }
         return scaling_dict
 
+    def add_crit(self, crit_chance):
+        self.cur_stats[CRITICAL_CHANCE] += crit_chance
+        if(self.cur_stats[CRITICAL_CHANCE] > 100):
+            self.cur_stats[CRITICAL_DAMAGE] += (self.cur_stats[CRITICAL_CHANCE]-100)/2
+            self.cur_stats[CRITICAL_CHANCE] = 100
 
     def equip_items(self, items):
         if(not isinstance(items, list)):
@@ -92,11 +117,17 @@ class Champion:
 
     def equip_item(self, item):
         if(item == DEATH_BLADE):
-            pass
+            self.cur_stats[ATTACK_DAMAGE] += (DEATHBLADE_AD * 
+                                            self.base_stats[ATTACK_DAMAGE]/100)
+            
         if(item == RABADONS_DEATHCAP):
             pass
         if(item == INFINITY_EDGE):
-            pass
+            self.cur_stats[ATTACK_DAMAGE] += (INFINITY_EDGE_AD * 
+                                            self.base_stats[ATTACK_DAMAGE]/100)
+            
+            self.add_crit(INFINITY_EDGE_CRITCHANCE)
+
         if(item == JEWELED_GAUNTLET):
             pass
         if(item == RUNNANS_HURRICANE):
@@ -104,11 +135,11 @@ class Champion:
         if(item == ARCHANGELS_STAFF):
             pass
         if(item == GUINSOOS_RAGEBLADE):
-            self.cur_stats[ATTACK_SPEED] += RAGEBLADE_AS
+            self.cur_stats[ATTACK_SPEED] += RAGEBLADE_AS*self.base_stats[ATTACK_SPEED]
             self.scaling[ON_AUTO_SCALING][ATTACK_SPEED_SCALING] += RAGEBLADE_SCALING
             self.cur_stats[ABILITY_POWER] += RAGEBLADE_AP
         if(item == RAPID_FIRE_CANNON):
-            pass
+            self.cur_stats[ATTACK_SPEED] += RFC_AS*self.base_stats[ATTACK_SPEED]
         if(item == BLUE_BUFF):
             pass
         if(item == SPEAR_OF_SHOJIN):
@@ -120,9 +151,14 @@ class Champion:
         if(item == BLOOD_THIRSTER):
             pass
         if(item == GIANT_SLAYER):
-            pass
+            self.cur_stats[ATTACK_SPEED] += GIANT_SLAYER_AS*self.base_stats[ATTACK_SPEED]
+            self.cur_stats[ATTACK_DAMAGE] += GIANT_SLAYER_AD*self.base_stats[ATTACK_DAMAGE]/100
+            self.cur_stats[ABILITY_POWER] += GIANT_SLAYER_AP
         if(item == GUARDBREAKER):
-            pass
+            self.cur_stats[ATTACK_DAMAGE] += GUARDBREAKER_AD*self.base_stats[ATTACK_DAMAGE]/100
+            self.cur_stats[ABILITY_POWER] += GUARDBREAKER_AP
+            self.cur_stats[HEALTH] += GUARDBREAKER_HEALTH
+            self.add_crit(GUARDBREAKER_CRITCHANCE)
 
     def perform_auto(self):
         self.num_autos += 1
@@ -131,6 +167,18 @@ class Champion:
         min_damage = self.cur_stats[ATTACK_DAMAGE]
         max_damage = (self.cur_stats[ATTACK_DAMAGE]*
                         self.cur_stats[CRITICAL_DAMAGE]/100)
+        
+
+        if(GIANT_SLAYER in self.items):
+            max_damage *= 1+GIANT_SLAYER_MULTIPLYER/100
+            min_damage *= 1+GIANT_SLAYER_MULTIPLYER/100
+
+
+        if(GUARDBREAKER in self.items):
+            max_damage *= 1+GUARDBREAKER_MULTIPLYER/100
+            min_damage *= 1+GIANT_SLAYER_MULTIPLYER/100
+
+        
         avg_damage = (min_damage * (100-self.cur_stats[CRITICAL_CHANCE])/100 +
                         max_damage * self.cur_stats[CRITICAL_CHANCE]/100)
         return min_damage,max_damage,avg_damage
@@ -138,7 +186,8 @@ class Champion:
     def apply_as_stacks(self):
         self.cur_stats[ATTACK_SPEED] += (self.scaling[ON_AUTO_SCALING][ATTACK_SPEED_SCALING]*
                                             self.base_stats[ATTACK_SPEED])
-        print(self.cur_stats[ATTACK_SPEED])
+        self.cur_stats[ATTACK_SPEED] = min(MAX_AS, self.cur_stats[ATTACK_SPEED])
+  
 
     def cast_ability(self):
         return 0,0,0 
@@ -170,15 +219,15 @@ class Champion:
 
 def graph_damage(time_total, min_damage_total, max_damage_total, avg_damage_total, ax, label='Damage'):
     ax.plot(time_total, avg_damage_total, label=label)
-    ax.fill_between(time_total, min_damage_total, max_damage_total, alpha=0.5)
+    ax.fill_between(time_total, min_damage_total, max_damage_total, alpha=0.2)
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Damage')
-    ax.legend()
+    ax.legend(loc='best')
     return ax 
 
 def define_default_stats():
     stats = {
-        ATTACK_SPEED: 0.7,
+        ATTACK_SPEED: 0.6,
         MAX_MANA: 100,
         MANA: 0,
         HEALTH: 1000,
@@ -198,16 +247,25 @@ def graph_scenario(axes, champion, time, label):
     return ax
 
 def main():
-    stats = define_default_stats()
-    items = [GUINSOOS_RAGEBLADE]
-    test_champ = Champion(stats, items)
-    
+    time = 30
     fig, axes = plt.subplots(1,1)
-    ax = graph_scenario(axes, test_champ, time=30, label='Items:' + str(items))
-    items = []
-    test_champ2 = Champion(stats, items)
-    ax = graph_scenario(axes, test_champ2, time=30, label='Items:' + str(items))
+    stats = define_default_stats()
+    item_combos = [
+        [GUINSOOS_RAGEBLADE, GUINSOOS_RAGEBLADE, GIANT_SLAYER],
+        [GUINSOOS_RAGEBLADE, INFINITY_EDGE, GIANT_SLAYER],
+        [GUINSOOS_RAGEBLADE, DEATH_BLADE, GIANT_SLAYER],
+        [INFINITY_EDGE, DEATH_BLADE, GIANT_SLAYER],
+        [INFINITY_EDGE, INFINITY_EDGE, DEATH_BLADE],
+        [DEATH_BLADE, DEATH_BLADE, DEATH_BLADE],
+        [RAPID_FIRE_CANNON, RAPID_FIRE_CANNON, DEATH_BLADE],
+        [RAPID_FIRE_CANNON, GUINSOOS_RAGEBLADE, DEATH_BLADE],
 
+    ]
+
+    for items in item_combos:
+        test_champ = Champion(stats, items)
+        ax = graph_scenario(axes, test_champ, time, label='Items:' + str(items))
+    
     plt.show()
 
 if __name__ == '__main__':
