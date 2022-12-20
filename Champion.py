@@ -17,26 +17,18 @@ BLOOD_THIRSTER = 'bt'
 GIANT_SLAYER = 'gs'
 GUARDBREAKER = 'guardbreaker'
 
-BASE_HEALTH = 'base_hp'
-BASE_ATTACK_DAMAGE = 'base_ad'
-BASE_ABILITY_POWER = 'base_ap'
-BASE_ARMOR = 'base_armor'
-BASE_MAGIC_RESIST = 'base_mr'
-BASE_CRITICAL_CHANCE = 'base_crit'
-BASE_ATTACK_SPEED = 'base_as'
-BASE_MAX_MANA = 'base_max_mana'
-BASE_OMNIVAMP = 'base_omnivamp'
 
-CURRENT_HEALTH = 'cur_hp'
-CURRENT_ATTACK_DAMAGE = 'cur_ad'
-CURRENT_ABILITY_POWER = 'cur_ap'
-CURRENT_ARMOR = 'cur_armor'
-CURRENT_MAGIC_RESIST = 'cur_mr'
-CURRENT_CRITICAL_CHANCE = 'cur_crit'
-CURRENT_ATTACK_SPEED = 'cur_as'
-CURRENT_MAX_MANA = 'cur_max_mana'
-CURRENT_MANA = 'cur_mana'
-CURRENT_OMNIVAMP = 'cur_omnivamp'
+HEALTH = 'cur_hp'
+ATTACK_DAMAGE = 'cur_ad'
+ABILITY_POWER = 'cur_ap'
+ARMOR = 'cur_armor'
+MAGIC_RESIST = 'cur_mr'
+CRITICAL_CHANCE = 'cur_crit'
+CRITICAL_DAMAGE = 'cur_critd'
+ATTACK_SPEED = 'cur_as'
+MAX_MANA = 'cur_max_mana'
+MANA = 'cur_mana'
+OMNIVAMP = 'cur_omnivamp'
 
 
 ON_AUTO_SCALING = 'auto'
@@ -46,21 +38,28 @@ ON_TIME_SCALING = 'time'
 ATTACK_SPEED_SCALING = 'as_scale'
 ATTACK_DAMAGE_SCALING = 'ad_scale'
 ABILITY_POWER_SCALING = 'ap_scale'
+
+RAGEBLADE_AS = 0.1
+RAGEBLADE_SCALING = 0.05
+RAGEBLADE_AP = 10
+
 class Champion:
     
 
     def __init__(self, base_stats, items = []):
         self.base_stats = base_stats 
-        self.cur_stats = base_stats
+        self.cur_stats = base_stats.copy()
         self.items = items 
+        self.scaling = self.init_scaling_dict()
+        self.equip_items(self.items)
         
         self.num_autos = 0
         self.num_seconds = 0
         self.num_casts = 0
 
-        self.scaling = self.init_scaling_dict
+        
 
-        self.equip_items(self.items)
+        
 
     def init_scaling_dict(self):
         scaling_dict = {
@@ -85,7 +84,7 @@ class Champion:
 
 
     def equip_items(self, items):
-        if(isinstance(items, list)):
+        if(not isinstance(items, list)):
             self.equip_item(items)
         else:
             for item in items:
@@ -105,7 +104,9 @@ class Champion:
         if(item == ARCHANGELS_STAFF):
             pass
         if(item == GUINSOOS_RAGEBLADE):
-            pass
+            self.cur_stats[ATTACK_SPEED] += RAGEBLADE_AS
+            self.scaling[ON_AUTO_SCALING][ATTACK_SPEED_SCALING] += RAGEBLADE_SCALING
+            self.cur_stats[ABILITY_POWER] += RAGEBLADE_AP
         if(item == RAPID_FIRE_CANNON):
             pass
         if(item == BLUE_BUFF):
@@ -125,8 +126,19 @@ class Champion:
 
     def perform_auto(self):
         self.num_autos += 1
-        self.num_seconds += 1/self.base_stats[CURRENT_ATTACK_SPEED]
-        return 0,2,1
+        self.num_seconds += 1/self.cur_stats[ATTACK_SPEED]
+        self.apply_as_stacks()
+        min_damage = self.cur_stats[ATTACK_DAMAGE]
+        max_damage = (self.cur_stats[ATTACK_DAMAGE]*
+                        self.cur_stats[CRITICAL_DAMAGE]/100)
+        avg_damage = (min_damage * (100-self.cur_stats[CRITICAL_CHANCE])/100 +
+                        max_damage * self.cur_stats[CRITICAL_CHANCE]/100)
+        return min_damage,max_damage,avg_damage
+    
+    def apply_as_stacks(self):
+        self.cur_stats[ATTACK_SPEED] += (self.scaling[ON_AUTO_SCALING][ATTACK_SPEED_SCALING]*
+                                            self.base_stats[ATTACK_SPEED])
+        print(self.cur_stats[ATTACK_SPEED])
 
     def cast_ability(self):
         return 0,0,0 
@@ -147,7 +159,7 @@ class Champion:
             avg_damage_total.append(avg_damage+avg_damage_total[-1])
             time_total.append(self.num_seconds)
 
-            if(self.cur_stats[CURRENT_MAX_MANA] < self.cur_stats[CURRENT_MANA]):
+            if(self.cur_stats[MAX_MANA] < self.cur_stats[MANA]):
                 min_damage, max_damage, avg_damage = self.cast_ability()
                 min_damage_total.append(min_damage+min_damage_total[-1])
                 max_damage_total.append(max_damage+max_damage_total[-1])
@@ -163,17 +175,39 @@ def graph_damage(time_total, min_damage_total, max_damage_total, avg_damage_tota
     ax.set_ylabel('Damage')
     ax.legend()
     return ax 
-    
-def main():
+
+def define_default_stats():
     stats = {
-        CURRENT_ATTACK_SPEED: 1,
-        CURRENT_MAX_MANA: 100,
-        CURRENT_MANA: 0
+        ATTACK_SPEED: 0.7,
+        MAX_MANA: 100,
+        MANA: 0,
+        HEALTH: 1000,
+        ATTACK_DAMAGE: 50,
+        ABILITY_POWER:  100,
+        ARMOR:  20,
+        MAGIC_RESIST:  20,
+        CRITICAL_CHANCE:  25,
+        CRITICAL_DAMAGE:  140,
+        OMNIVAMP: 0,
     }
-    test_champ = Champion(stats)
-    time_total, min_damage_total, max_damage_total, avg_damage_total = test_champ.simulate_fight(30)
+    return stats
+
+def graph_scenario(axes, champion, time, label):
+    time_total, min_damage_total, max_damage_total, avg_damage_total = champion.simulate_fight(time)
+    ax = graph_damage(time_total, min_damage_total, max_damage_total, avg_damage_total, axes, label)
+    return ax
+
+def main():
+    stats = define_default_stats()
+    items = [GUINSOOS_RAGEBLADE]
+    test_champ = Champion(stats, items)
+    
     fig, axes = plt.subplots(1,1)
-    ax = graph_damage(time_total, min_damage_total, max_damage_total, avg_damage_total, axes)
+    ax = graph_scenario(axes, test_champ, time=30, label='Items:' + str(items))
+    items = []
+    test_champ2 = Champion(stats, items)
+    ax = graph_scenario(axes, test_champ2, time=30, label='Items:' + str(items))
+
     plt.show()
 
 if __name__ == '__main__':
