@@ -72,7 +72,7 @@ class Champion:
         self.items = items 
         self.scaling = self.init_scaling_dict()
         self.equip_items(self.items)
-        
+        self.ability = {'something something'}
         self.num_autos = 0
         self.num_seconds = 0
         self.num_casts = 0
@@ -160,9 +160,16 @@ class Champion:
             self.cur_stats[HEALTH] += GUARDBREAKER_HEALTH
             self.add_crit(GUARDBREAKER_CRITCHANCE)
 
+    def apply_mana(self):
+        self.cur_stats[MANA] += 10
+        if(SPEAR_OF_SHOJIN in self.items and self.num_autos%3 == 0):
+            self.cur_stats[MANA] += 20
+
+
     def perform_auto(self):
         self.num_autos += 1
         self.num_seconds += 1/self.cur_stats[ATTACK_SPEED]
+        self.apply_mana()
         self.apply_as_stacks()
         min_damage = self.cur_stats[ATTACK_DAMAGE]
         max_damage = (self.cur_stats[ATTACK_DAMAGE]*
@@ -190,7 +197,11 @@ class Champion:
   
 
     def cast_ability(self):
-        return 0,0,0 
+        self.cur_stats[MANA] = 0
+        min_damage = self.ability['something']
+        max_damage = self.ability['something']
+        avg_damage = self.ability['something']
+        return min_damage,max_damage,avg_damage 
 
     def initilize_fight(self):
         self.num_seconds = 0
