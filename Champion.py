@@ -46,6 +46,7 @@ PREVIOUS_SCALE = 'prev_scal_time'
 ATTACK_SPEED_SCALING = 'as_scale'
 ATTACK_DAMAGE_SCALING = 'ad_scale'
 ABILITY_POWER_SCALING = 'ap_scale'
+SCALE_AUTONUM = 'scale_autonum'
 
 RAGEBLADE_AS = 0.1
 RAGEBLADE_SCALING = 0.05
@@ -129,6 +130,7 @@ class Champion:
                 ATTACK_SPEED_SCALING: 0,
                 ATTACK_DAMAGE_SCALING: 0,
                 ABILITY_POWER_SCALING: 0,
+                SCALE_AUTONUM: 1
             },
             ON_CAST_SCALING:{
                 ATTACK_SPEED_SCALING: 0,
@@ -356,7 +358,7 @@ def define_default_stats():
         ATTACK_SPEED: 0.75,
         MAX_MANA: 90,
         MANA: 0,
-        HEALTH: 1700,
+        HEALTH: 700,
         ATTACK_DAMAGE: 68,
         ABILITY_POWER:  160,
         ARMOR:  30,
@@ -394,13 +396,13 @@ def main():
 
     ]
     '''
-    
+    '''
     item_combos=[
         [SPEAR_OF_SHOJIN, RABADONS_DEATHCAP, JEWELED_GAUNTLET],
         [SPEAR_OF_SHOJIN, GIANT_SLAYER, JEWELED_GAUNTLET],
         [SPEAR_OF_SHOJIN, GUARDBREAKER, JEWELED_GAUNTLET],
         [SPEAR_OF_SHOJIN, GIANT_SLAYER, GUARDBREAKER],
-        [SPEAR_OF_SHOJIN, BLUE_BUFF, JEWELED_GAUNTLET],
+        [SPEAR_OF_SHOJIN, GUINSOOS_RAGEBLADE, JEWELED_GAUNTLET],
         [SPEAR_OF_SHOJIN, SPEAR_OF_SHOJIN, SPEAR_OF_SHOJIN],
     ]
     '''
@@ -410,9 +412,9 @@ def main():
         [SPEAR_OF_SHOJIN, GUARDBREAKER, ],
         [SPEAR_OF_SHOJIN, JEWELED_GAUNTLET, ],
         [SPEAR_OF_SHOJIN, ARCHANGELS_STAFF, ],
-        [SPEAR_OF_SHOJIN,BLUE_BUFF],
+        [SPEAR_OF_SHOJIN, GUINSOOS_RAGEBLADE],
     ]
-    '''
+    
     targets= Champion(stats)
     is_shielded = (targets.cur_stats[SHIELD] > 0)
     is_big = (targets.cur_stats[HEALTH] > GIANT_SLAYER_THRESH)
