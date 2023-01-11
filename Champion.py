@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt 
 import numpy as np 
+import pandas as pd
 
 DEATH_BLADE = 'db'
 RABADONS_DEATHCAP = 'dcap'
@@ -89,6 +90,9 @@ ARCHANGELS_AP_SCALING = 20
 ARCHANGELS_AP_SCALETIME = 5
 ARCHANGELS_START_MANA = 15
 
+START_AP = 100
+START_CRITCHANCE = 25
+START_CRITDAMAGE = 140
 
 STAR_GUARDIAN = 'star_guardian'
 STAR_GUARDIAN_MANA = {
@@ -105,7 +109,10 @@ MAX_AS = 5
 class Champion:
     
 
-    def __init__(self, base_stats, items = [], ability = None, traits = None, target=None):
+    def __init__(self, base_stats, items = [], ability = None, traits = None, target=None, 
+                            champion_name = None, champion_cost=None):
+        self.champ_name = champion_name
+        self.champion_cost = champion_cost
         self.scaling = self.init_scaling_dict()
         self.traits = self.apply_traits(traits)
         self.base_stats = base_stats 
@@ -217,7 +224,10 @@ class Champion:
             self.add_crit(GUARDBREAKER_CRITCHANCE)
 
     def apply_mana(self):
-        star_guardian = self.traits[STAR_GUARDIAN]
+        try:
+            star_guardian = self.traits[STAR_GUARDIAN]
+        except TypeError:
+            star_guardian = 0
         bonus = STAR_GUARDIAN_MANA[star_guardian]
         total_mana = DEFAULT_MANA_GAIN * (100+bonus)/100
         self.cur_stats[MANA] += total_mana
@@ -319,6 +329,7 @@ def graph_damage(time_total, min_damage_total, max_damage_total, avg_damage_tota
     ax.fill_between(time_total, min_damage_total, max_damage_total, alpha=0.2)
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Damage')
+    
     ax.legend(loc='best')
     return ax 
 
@@ -358,7 +369,7 @@ def define_default_stats():
         ATTACK_SPEED: 0.75,
         MAX_MANA: 90,
         MANA: 0,
-        HEALTH: 700,
+        HEALTH: 1700,
         ATTACK_DAMAGE: 68,
         ABILITY_POWER:  160,
         ARMOR:  30,
@@ -373,9 +384,103 @@ def define_default_stats():
 def graph_scenario(axes, champion, time, label):
     time_total, min_damage_total, max_damage_total, avg_damage_total = champion.simulate_fight(time)
     ax = graph_damage(time_total, min_damage_total, max_damage_total, avg_damage_total, axes, label)
-    return ax
+    return ax, avg_damage_total[-1]
 
-def main():
+def graph_all_champs(champ_list):
+    time=30
+    
+    for cost in range(5):
+        fig, axes = plt.subplots(1,1)
+        max_dmgs = []
+        labels = []
+        for champ in champ_list:
+            
+            if(champ.champion_cost == cost+1):
+                label = 'champion:' + str(champ.champ_name)
+                ax, max_dmg = graph_scenario(axes, champ, time, label=label)
+                max_dmgs.append(max_dmg)
+                labels.append(label)
+        sorted_labels = [x for _, x in sorted(zip(max_dmgs, labels))]
+        print(sorted_labels)
+        order = np.argsort(-np.array(max_dmgs))
+        h, l = plt.gca().get_legend_handles_labels()
+        plt.legend(handles=list(np.array(h)[order]),labels=list(np.array(labels)[order]))
+        plt.title('All Champions cost ' + str(cost+1))
+        plt.show()
+
+def interpret_scaling(string):
+    if(isinstance(string, float) or isinstance(string, int)):
+        return string 
+    if('%' in string):
+        string = string.split('%')[0]
+    num = ""
+    for c in string:
+        if c.isdigit():
+            num = num + c
+    return float(num)
+    
+    
+
+
+def read_csv_file(filename):
+    df = pd.read_csv(filename, header = 1)
+    champions = []
+    for index, row in df.iterrows():
+        champname = row['Champion']
+        champcost = row['Cost']
+        health = row['Health']
+        armor = row['Armor']
+        magic_resist = row['Armor']
+        mana = row['Mana']
+        try:
+            start_mana = float(mana.split('/')[0])
+            max_mana = float(mana.split('/')[1])
+        except IndexError:
+            start_mana = 0
+            max_mana = 999
+        except ValueError:
+            start_mana = 0
+            max_mana = 999
+        attack_damage = row['Attack Damage']
+        attack_speed = row['Attack Speed']
+
+        stats = {
+            ATTACK_SPEED: attack_speed,
+            MAX_MANA: max_mana,
+            MANA: start_mana,
+            HEALTH: health,
+            ATTACK_DAMAGE: attack_damage,
+            ABILITY_POWER:  START_AP,
+            ARMOR:  armor,
+            MAGIC_RESIST:  magic_resist,
+            CRITICAL_CHANCE: START_CRITCHANCE ,
+            CRITICAL_DAMAGE: START_CRITDAMAGE,
+            OMNIVAMP: 0,
+            SHIELD: 0
+        }
+        if(isinstance(row['Ability AP Scaling'], str )):
+            ability_ap_scaling = (row['Ability AP Scaling'].split('/')[0])
+        else:
+            ability_ap_scaling = 0
+
+        if(isinstance(row['Ability AD Scaling'], str )):  
+            ability_ad_scaling = (row['Ability AD Scaling'].split('/')[0])
+        else:
+            ability_ad_scaling = 0
+        ability = {
+            DAMAGE_AP_SCALING : interpret_scaling(ability_ap_scaling),
+            DAMAGE_AD_SCALING : interpret_scaling(ability_ad_scaling),
+            SHIELD_AP_SCALING : 100,
+            HEAL_AP_SCALING : 100,
+            CAST_TIME : 2,
+        }
+
+        champ = Champion(base_stats=stats, ability=ability, champion_name=champname, champion_cost=champcost)
+        champions.append(champ)
+    return champions
+
+
+def item_test():
     time = 30
     fig, axes = plt.subplots(1,1)
     stats = define_default_stats()
@@ -396,14 +501,16 @@ def main():
 
     ]
     '''
-    '''
+    
     item_combos=[
         [SPEAR_OF_SHOJIN, RABADONS_DEATHCAP, JEWELED_GAUNTLET],
         [SPEAR_OF_SHOJIN, GIANT_SLAYER, JEWELED_GAUNTLET],
-        [SPEAR_OF_SHOJIN, GUARDBREAKER, JEWELED_GAUNTLET],
+        [GIANT_SLAYER, GUARDBREAKER, JEWELED_GAUNTLET],
         [SPEAR_OF_SHOJIN, GIANT_SLAYER, GUARDBREAKER],
-        [SPEAR_OF_SHOJIN, GUINSOOS_RAGEBLADE, JEWELED_GAUNTLET],
-        [SPEAR_OF_SHOJIN, SPEAR_OF_SHOJIN, SPEAR_OF_SHOJIN],
+        [BLUE_BUFF, GUINSOOS_RAGEBLADE, JEWELED_GAUNTLET],
+        [BLUE_BUFF, JEWELED_GAUNTLET, GIANT_SLAYER],
+        [BLUE_BUFF, RABADONS_DEATHCAP, JEWELED_GAUNTLET],
+        [BLUE_BUFF, GIANT_SLAYER, GUARDBREAKER],
     ]
     '''
     item_combos=[
@@ -414,7 +521,7 @@ def main():
         [SPEAR_OF_SHOJIN, ARCHANGELS_STAFF, ],
         [SPEAR_OF_SHOJIN, GUINSOOS_RAGEBLADE],
     ]
-    
+    '''
     targets= Champion(stats)
     is_shielded = (targets.cur_stats[SHIELD] > 0)
     is_big = (targets.cur_stats[HEALTH] > GIANT_SLAYER_THRESH)
@@ -426,8 +533,16 @@ def main():
         test_champ = Champion(stats, items, ability, traits=traits, target=targets)
 
         ax = graph_scenario(axes, test_champ, time, label='Items:' + str(items))
-    plt.title('Taliyah 2 damage with 4 spellslinger,' + str(is_shielded)+' shielded target, ' +str(is_big)+' above  1500 health, assuming ' +str(num_targts)+ ' targets, '+str(traits[STAR_GUARDIAN])+' star guardian')
+    title_str = ('Taliyah 2 damage with 4 spellslinger,' + str(is_shielded)+' shielded target, ' +
+                    str(is_big)+' above  1500 health, assuming ' +str(num_targts)+ ' targets, '+
+                    str(traits[STAR_GUARDIAN])+' star guardian')
+    plt.title(title_str)
     plt.show()
+
+def main():
+    filename = '/mnt/c/Users/tongt/Downloads/tft_Sheet4.csv'
+    champ_list = read_csv_file(filename)
+    graph_all_champs(champ_list)
 
 if __name__ == '__main__':
     main()
